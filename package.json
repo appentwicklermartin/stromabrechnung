@@ -1,0 +1,9 @@
+{
+  "name": "stromabrechnung",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zählerstand-Tracker mit GitHub-Login",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
