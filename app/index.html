@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stromabrechnung</title>
+<style>
+:root{--bg:#f7f7f5;--panel:#fff;--fg:#1b1b1b;--muted:#6b6b6b;--line:#e3e3df;--ok:#1f7a4d;--bad:#b42318;--acc:#2a78d6;--acc2:#eb6834}
+@media(prefers-color-scheme:dark){:root{--bg:#161616;--panel:#202020;--fg:#eee;--muted:#a0a0a0;--line:#333;--ok:#4cc38a;--bad:#ff6b5e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:960px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:18px}
+h1{font:400 28px Georgia,serif;margin:0}
+.lead{color:var(--muted);margin:4px 0 0}.lead b{color:var(--fg)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card h2{font-size:12px;font-weight:600;color:var(--muted);margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+.panel h2{font-size:17px;margin:0 0 10px}
+.big{font:400 28px Georgia,serif;margin:0;white-space:nowrap}
+.sub{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+.good{color:var(--ok)}.bad{color:var(--bad)}
+.tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 6px;margin-left:4px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;color:var(--muted);font-weight:600}
+.forms{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+form{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+form h2,.full{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
+button{font:inherit;cursor:pointer;border-radius:8px}
+.btn{background:var(--fg);color:var(--bg);border:0;padding:8px 14px}
+.btn2{background:none;border:1px solid var(--line);color:var(--fg);padding:6px 12px;font-size:13px}
+.del{background:none;border:1px solid var(--line);color:var(--muted);padding:2px 8px;font-size:12px;margin-left:4px}
+.dateRow{display:flex;gap:6px}.dateRow input{flex:1}
+.edit-hint{font-size:12.5px;color:var(--acc);margin:0}
+.msg{font-size:12.5px;margin:0}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+svg{display:block;width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.sw{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px}
+details{font-size:13px;color:var(--muted)}details li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Stromabrechnung</h1>
+  <p class="lead" id="lead">Sobald eine Ablesung nach dem Startdatum eingetragen ist, erscheint hier, ob du zum Jahresende nachzahlen musst.</p>
+</header>
+
+<section class="cards">
+  <article class="card"><h2>Verbrauch seit Beginn</h2><p class="big"><span id="kwh">–</span> kWh</p><p class="sub">seit <span id="start">–</span> · <span id="tage">–</span> Tage · letzte Ablesung <span id="letzte">–</span></p></article>
+  <article class="card"><h2>Ø Verbrauch pro Tag</h2><p class="big"><span id="kwhTag">–</span> kWh</p><p class="sub">hochgerechnet <span id="progKwh">–</span> kWh/Jahr <span class="tag">Schätzung</span></p><p class="sub">Abschlag deckt <span id="budTag">–</span> kWh/Tag bzw. <span id="budJahr">–</span> kWh/Jahr</p></article>
+  <article class="card"><h2>Stand letzte Ablesung: <span id="saldoWort">–</span></h2><p class="big"><span id="saldo">–</span> €</p><p class="sub">Kosten bisher <span id="kosten">–</span> € (Verbrauch <span id="kostAP">–</span> € + Grundpreis <span id="kostGP">–</span> €)</p><p class="sub">Abgebuchte Abschläge bis dahin: <span id="gezahlt">–</span> € (<span id="raten">–</span> Raten)</p></article>
+  <article class="card"><h2>Prognose Jahresende: <span id="progWort">–</span></h2><p class="big"><span id="prog">–</span> €</p><p class="sub">Kostendeckender Abschlag <span id="empf">–</span> €/Monat (aktuell <span id="ab">–</span> €) <span class="tag">Schätzung</span></p><p class="sub bad" id="progHint" hidden></p></article>
+</section>
+
+<section class="panel">
+  <h2>Kosten und Abschläge im Verlauf</h2>
+  <div class="legend"><span><i class="sw" style="background:var(--acc)"></i>Stromkosten kumuliert</span><span><i class="sw" style="background:var(--acc2)"></i>Abschläge kumuliert (abgebucht)</span><span><i class="sw" style="border-top:2px dashed var(--muted);height:0"></i>Hochrechnung</span></div>
+  <div id="chart"><p class="sub">Sobald die erste Ablesung eingetragen ist, erscheint hier der Verlauf.</p></div>
+</section>
+
+<section class="panel">
+  <h2>Verbrauch pro Monat</h2>
+  <div class="legend"><span><i class="sw" style="background:var(--acc)"></i>kWh im Monat (rot = über Budget)</span><span><i class="sw" style="background:var(--acc);opacity:.4"></i>Monat noch nicht vollständig abgelesen</span><span><i class="sw" style="border-top:2px dashed var(--ok);height:0"></i>Budget laut Abschlag</span></div>
+  <div id="bars"><p class="sub">Sobald die erste Ablesung eingetragen ist, erscheint hier der Verbrauch pro Monat.</p></div>
+  <p class="sub">Liegt eine Ablesung mitten im Monat, wird der Verbrauch des Zeitraums gleichmäßig auf die Tage verteilt (Schätzung).</p>
+</section>
+
+<section class="panel">
+  <h2>Ablesungen</h2>
+  <div class="wrap"><table><thead><tr><th>Zeitraum</th><th>Zählerstand</th><th>Tage</th><th>kWh</th><th>kWh/Tag</th><th>Kosten €</th><th></th></tr></thead><tbody id="tbody"></tbody></table></div>
+</section>
+
+<section class="forms">
+  <form class="panel" id="fAbl">
+    <h2 id="fAblTitel">Neuer Zählerstand</h2>
+    <p class="edit-hint full" id="editHint" hidden></p>
+    <label>Ablesedatum<span class="dateRow"><input type="date" name="datum" required><button class="btn2" type="button" id="heute">Heute</button></span></label>
+    <label>Zählerstand (kWh)<input type="number" name="stand" step="0.1" min="0" required inputmode="decimal"></label>
+    <div class="full row"><button class="btn" type="submit">Speichern</button><button class="btn2" type="button" id="abbr" hidden>Abbrechen</button></div>
+    <p class="msg full" id="mAbl"></p>
+  </form>
+  <form class="panel" id="fTarif">
+    <h2>Tarif &amp; Abschlag</h2>
+    <label>Beginn Abrechnungsjahr<input type="date" name="startdatum" required></label>
+    <label>Zählerstand zu Beginn (kWh)<input type="number" name="startstand" step="0.1" min="0" required></label>
+    <label>Arbeitspreis (ct/kWh brutto)<input type="number" name="arbeitspreis_ct" step="0.01" min="0" required></label>
+    <label>Grundpreis (€/Monat brutto)<input type="number" name="grundpreis_monat" step="0.01" min="0" required></label>
+    <label>Monatlicher Abschlag (€)<input type="number" name="abschlag_monat" step="0.01" min="0" required></label>
+    <label>Erste Abschlagszahlung<input type="date" name="erste_zahlung" required></label>
+    <div class="full"><button class="btn" type="submit">Tarif speichern</button></div>
+    <p class="msg full" id="mTarif"></p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Sicherung</h2>
+  <p class="sub" style="margin-top:0">Die Daten liegen nur in diesem Browser. Exportiere sie ab und zu als Datei – damit kannst du sie auch auf ein anderes Gerät übertragen.</p>
+  <div class="row" style="margin-top:10px"><button class="btn2" id="exp" type="button">Daten exportieren</button><label class="btn2" style="flex-direction:row;cursor:pointer">Daten importieren<input type="file" id="imp" accept="application/json" hidden></label><span class="msg" id="mImp"></span></div>
+</section>
+
+<details>
+  <summary>So wird gerechnet</summary>
+  <ul>
+    <li><b>Verbrauch</b> = letzter Zählerstand − Zählerstand zu Beginn (gemessen).</li>
+    <li><b>Kosten bisher</b> = Verbrauch × Arbeitspreis + Grundpreis anteilig für die vergangenen Tage.</li>
+    <li><b>Abgebuchte Abschläge</b> = Anzahl der Raten, die bis zum Ablesedatum fällig waren (ab „Erste Abschlagszahlung“, monatlich, max. 12) × Abschlag.</li>
+    <li><b>Stand letzte Ablesung</b> = abgebuchte Abschläge − Kosten bisher. Weil die Raten monatlich kommen, der Verbrauch aber täglich, schwankt dieser Wert im Monat hin und her.</li>
+    <li><b>Hochrechnung</b> = Ø kWh/Tag × Tage im Jahr. Lineare Schätzung: Im Winter ist der Verbrauch meist höher, frühe Prognosen sind daher eher zu pessimistisch.</li>
+    <li><b>Prognose</b> = 12 × Abschlag − (Hochrechnung × Arbeitspreis + 12 × Grundpreis). Positiv = Guthaben, negativ = Nachzahlung.</li>
+    <li><b>Abschlag deckt</b> = (12 × Abschlag − 12 × Grundpreis) ÷ Arbeitspreis.</li>
+  </ul>
+</details>
+<p class="sub"><a href="/logout" style="color:var(--muted)">Abmelden</a></p>
+</main>
+
+<script>
+(function(){
+const KEY='stromabrechnung-v1';
+const DEFAULT={tarif:{startdatum:'2026-11-25',startstand:7429,arbeitspreis_ct:30.98,grundpreis_monat:14.02,abschlag_monat:60,erste_zahlung:'2026-12-10'},ablesungen:[]};
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.tarif){s.tarif=Object.assign({},DEFAULT.tarif,s.tarif);return s;}}catch(e){}return JSON.parse(JSON.stringify(DEFAULT));}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st));return true;}catch(e){return false;}}
+let st=load();
+const $=id=>document.getElementById(id);
+const nf=(d)=>new Intl.NumberFormat('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
+const f0=nf(0).format,f1=nf(1).format,f2=nf(2).format;
+const dt=iso=>iso?iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+iso.slice(0,4):'–';
+const D=s=>new Date(s+'T00:00:00Z');
+const DAY=864e5;
+
+function calc(){
+  const t=st.tarif,ap=t.arbeitspreis_ct/100,gp=t.grundpreis_monat,ab=t.abschlag_monat,s0=t.startstand;
+  const d0=D(t.startdatum),dE=new Date(d0);dE.setUTCFullYear(dE.getUTCFullYear()+1);
+  const PT=Math.round((dE-d0)/DAY);
+  const z0=t.erste_zahlung?D(t.erste_zahlung):null;
+  const raten=d=>{if(!z0)return 0;let n=0;for(let m=0;m<12;m++){const x=new Date(z0);x.setUTCMonth(x.getUTCMonth()+m);if(x<=d)n++;}return n;};
+  const rs=st.ablesungen.map(r=>({d:D(r.datum),s:+r.stand,datum:r.datum})).filter(r=>r.d>d0).sort((a,b)=>a.d-b.d);
+  let prev={d:d0,s:s0,datum:t.startdatum},kum=0;
+  const iv=rs.map(r=>{const tage=Math.round((r.d-prev.d)/DAY),kwh=r.s-prev.s,k=kwh*ap+gp*12*tage/PT;kum+=k;
+    const o={von:prev.datum,bis:r.datum,d:r.d,stand:r.s,tage,kwh,kwhTag:tage>0?kwh/tage:null,kosten:k,kosK:kum,abK:raten(r.d)*ab};prev=r;return o;});
+  const mon={};const keyOf=d=>d.toISOString().slice(0,7);
+  for(let d=new Date(d0);d<dE;d=new Date(d.getTime()+DAY)){const k=keyOf(d);if(!mon[k])mon[k]={key:k,periodTage:0,tage:0,kwh:0,monatTage:new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate()};mon[k].periodTage++;}
+  iv.forEach(r=>{const per=r.tage>0?r.kwh/r.tage:0;for(let d=D(r.von);d<r.d;d=new Date(d.getTime()+DAY)){const m=mon[keyOf(d)];if(m){m.kwh+=per;m.tage++;}}});
+  const monate=Object.values(mon).sort((a,b)=>a.key<b.key?-1:1);
+  const last=rs[rs.length-1],tage=last?Math.round((last.d-d0)/DAY):0,kwh=last?last.s-s0:0,kwhTag=tage>0?kwh/tage:null;
+  const anteil=tage/PT,kostAP=kwh*ap,kostGP=gp*12*anteil,kosten=kostAP+kostGP,nRaten=last?raten(last.d):0,gez=nRaten*ab;
+  const progKwh=kwhTag==null?null:kwhTag*PT,progK=progKwh==null?null:progKwh*ap+gp*12,progS=progK==null?null:ab*12-progK;
+  const bud=ap>0?(ab*12-gp*12)/ap:null;
+  return {t,d0,dE,PT,iv,monate,ap,gp,last,tage,kwh,kwhTag,kosten,kostAP,kostGP,nRaten,gez,saldo:gez-kosten,progKwh,progK,progS,bud,ab,ende:new Date(dE-DAY).toISOString().slice(0,10)};
+}
+function set(id,txt,tone){const e=$(id);e.textContent=txt;if(tone!==undefined){e.classList.toggle('good',tone>=0);e.classList.toggle('bad',tone<0);}}
+
+function render(){
+  const c=calc();
+  set('start',dt(c.t.startdatum));set('tage',f0(c.tage));set('letzte',c.last?dt(c.last.datum):'–');
+  set('kwh',f1(c.kwh));set('kwhTag',c.kwhTag==null?'–':f2(c.kwhTag));set('progKwh',c.progKwh==null?'–':f0(c.progKwh));
+  set('budTag',c.bud==null?'–':f2(c.bud/c.PT));set('budJahr',c.bud==null?'–':f0(c.bud));
+  set('kosten',f2(c.kosten));set('kostAP',f2(c.kostAP));set('kostGP',f2(c.kostGP));set('gezahlt',f2(c.gez));set('raten',f0(c.nRaten));set('ab',f2(c.ab));
+  const hint=$('progHint');hint.hidden=!(c.last&&c.tage<30);hint.textContent='Basiert erst auf '+f0(c.tage)+(c.tage===1?' Tag':' Tagen')+' – noch sehr unsicher. Aussagekräftig wird die Prognose nach einigen Wochen, am besten nach einem Winter- und einem Sommermonat.';
+  if(c.last){set('saldo',f2(Math.abs(c.saldo)),c.saldo);set('saldoWort',c.saldo>=0?'Guthaben':'noch offen',c.saldo);}
+  else{set('saldo','–');set('saldoWort','–');}
+  if(c.progS!=null){
+    set('prog',f2(Math.abs(c.progS)),c.progS);set('progWort',c.progS>=0?'Guthaben':'Nachzahlung',c.progS);set('empf',f2(c.progK/12));
+    const L=$('lead');L.textContent='';
+    L.append('Bei gleichbleibendem Verbrauch erwartet dich zum ');const b1=document.createElement('b');b1.textContent=dt(c.ende);L.append(b1);
+    L.append(' voraussichtlich '+(c.progS>=0?'ein Guthaben':'eine Nachzahlung')+' von ');const b2=document.createElement('b');b2.textContent=f2(Math.abs(c.progS))+' €';b2.className=c.progS>=0?'good':'bad';L.append(b2);
+    const tg=document.createElement('span');tg.className='tag';tg.textContent='Schätzung';L.append(' ',tg);
+    if(c.tage<30){const w=document.createElement('span');w.className='bad';w.textContent=' Achtung: erst '+f0(c.tage)+(c.tage===1?' Tag':' Tage')+' Daten – die Hochrechnung ist noch nicht belastbar.';L.append(w);}
+  } else {set('prog','–');set('progWort','–');set('empf','–');$('lead').textContent='Sobald eine Ablesung nach dem Startdatum eingetragen ist, erscheint hier, ob du zum Jahresende nachzahlen musst.';}
+  // table
+  const tb=$('tbody');tb.textContent='';
+  if(!c.iv.length){const tr=tb.insertRow(),td=tr.insertCell();td.colSpan=7;td.style.textAlign='left';td.style.color='var(--muted)';td.textContent='Noch keine Ablesung nach dem Startdatum – trag unten deinen ersten Zählerstand ein.';}
+  c.iv.slice().reverse().forEach(r=>{const tr=tb.insertRow();
+    [dt(r.von)+' – '+dt(r.bis),f1(r.stand),f0(r.tage),f1(r.kwh),r.kwhTag==null?'–':f2(r.kwhTag),f2(r.kosten)].forEach(x=>tr.insertCell().textContent=x);
+    const td=tr.insertCell();
+    const e=document.createElement('button');e.className='del';e.type='button';e.textContent='Bearbeiten';e.onclick=()=>startEdit(r.bis,r.stand);
+    const b=document.createElement('button');b.className='del';b.type='button';b.textContent='Löschen';
+    b.onclick=()=>{if(b.dataset.sure){st.ablesungen=st.ablesungen.filter(a=>a.datum!==r.bis);if(editing===r.bis)stopEdit();save();render();}else{b.dataset.sure='1';b.textContent='Wirklich löschen?';b.classList.add('bad');setTimeout(()=>{if(b.isConnected){delete b.dataset.sure;b.textContent='Löschen';b.classList.remove('bad');}},4000);}};
+    td.append(e,b);});
+  chart(c);bars(c);
+  // tarif form
+  const ft=$('fTarif');for(const k in c.t){const i=ft.elements[k];if(i&&document.activeElement!==i)i.value=c.t[k];}
+}
+
+function chart(c){
+  const box=$('chart');
+  if(!c.iv.length){box.innerHTML='<p class="sub">Sobald die erste Ablesung eingetragen ist, erscheint hier der Verlauf.</p>';return;}
+  const W=box.clientWidth||600,H=240,mt=10,mb=26;
+  const pts=[{d:c.d0,k:0,a:0}].concat(c.iv.map(r=>({d:r.d,k:r.kosK,a:r.abK})));
+  const last=pts[pts.length-1],proj=c.progK!=null?[last,{d:c.dE,k:c.progK,a:c.ab*12}]:[];
+  const ymax=Math.max(...pts.concat(proj).map(p=>Math.max(p.k,p.a)),1)*1.08;
+  const step=Math.pow(10,Math.floor(Math.log10(ymax/4)));const nice=[1,2,2.5,5,10].map(m=>m*step).find(s=>ymax/s<=6)||step*10;
+  const ticks=[];for(let v=0;v<=ymax;v+=nice)ticks.push(v);
+  const ml=Math.max(...ticks.map(v=>(f0(v)+' €').length))*7+12,mr=26;
+  const x=d=>ml+(d-c.d0)/(c.dE-c.d0)*(W-ml-mr),y=v=>H-mb-(v/ymax)*(H-mb-mt);
+  const line=(arr,key)=>arr.map((p,i)=>(i?'L':'M')+x(p.d).toFixed(1)+','+y(p[key]).toFixed(1)).join('');
+  const mon=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  let s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" aria-label="Kumulierte Stromkosten im Vergleich zu den anteiligen Abschlägen">';
+  ticks.forEach(v=>{s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/><text x="'+(ml-6)+'" y="'+(y(v)+4)+'" text-anchor="end" font-size="11" fill="var(--muted)">'+f0(v)+' €</text>';});
+  const every=Math.max(1,Math.ceil(12/((W-ml-mr)/60)));
+  for(let i=0;i<=12;i+=every){const d=new Date(c.d0);d.setUTCMonth(d.getUTCMonth()+i);if(d>c.dE)break;s+='<text x="'+x(d)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="var(--muted)">'+mon[d.getUTCMonth()]+' '+String(d.getUTCFullYear()).slice(2)+'</text>';}
+  if(proj.length){s+='<path d="'+line(proj,'a')+'" fill="none" stroke="var(--acc2)" stroke-width="1.5" stroke-dasharray="4 4" opacity=".7"/><path d="'+line(proj,'k')+'" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-dasharray="4 4" opacity=".7"/>';}
+  s+='<path d="'+line(pts,'a')+'" fill="none" stroke="var(--acc2)" stroke-width="2"/><path d="'+line(pts,'k')+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';
+  pts.slice(1).forEach(p=>{s+='<circle cx="'+x(p.d)+'" cy="'+y(p.k)+'" r="3.5" fill="var(--acc)"><title>'+dt(p.d.toISOString().slice(0,10))+': Kosten '+f2(p.k)+' € · Abschläge '+f2(p.a)+' €</title></circle>';});
+  box.innerHTML=s+'</svg>';
+}
+
+function bars(c){
+  const box=$('bars');
+  if(!c.iv.length){box.innerHTML='<p class="sub">Sobald die erste Ablesung eingetragen ist, erscheint hier der Verbrauch pro Monat.</p>';return;}
+  const budDay=c.bud==null?null:c.bud/c.PT;
+  const ms=c.monate,mn=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  const W=box.clientWidth||600,H=230,mt=22,mb=30,ml=8,mr=8;
+  const vmax=Math.max(...ms.map(m=>Math.max(m.kwh,budDay?budDay*m.periodTage:0)),1)*1.1;
+  const bw=(W-ml-mr)/ms.length,y=v=>H-mb-v/vmax*(H-mb-mt);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" aria-label="Stromverbrauch pro Monat im Vergleich zum Budget laut Abschlag">';
+  s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="var(--line)"/>';
+  ms.forEach((m,i)=>{const x0=ml+i*bw,cx=x0+bw/2,w=Math.max(4,bw*0.62),bud=budDay==null?null:budDay*m.periodTage;
+    const lab=mn[+m.key.slice(5,7)-1]+' '+m.key.slice(2,4);
+    s+='<text x="'+cx+'" y="'+(H-10)+'" text-anchor="middle" font-size="'+(bw<38?9:11)+'" fill="var(--muted)">'+lab+'</text>';
+    if(m.tage>0){const voll=m.tage>=m.periodTage,over=bud!=null&&voll&&m.kwh>bud,kost=m.kwh*c.ap+c.gp*m.periodTage/m.monatTage;
+      s+='<rect x="'+(cx-w/2)+'" y="'+y(m.kwh)+'" width="'+w+'" height="'+Math.max(1,y(0)-y(m.kwh))+'" rx="3" fill="'+(over?'var(--bad)':'var(--acc)')+'" opacity="'+(voll?1:.4)+'"><title>'+lab+': '+f0(m.kwh)+' kWh · ca. '+f2(kost)+' €'+(bud!=null?' · Budget '+f0(bud)+' kWh':'')+(voll?'':' · Daten erst für '+m.tage+' von '+m.periodTage+' Tagen')+'</title></rect>';
+      if(bw>=26)s+='<text x="'+cx+'" y="'+(y(m.kwh)-5)+'" text-anchor="middle" font-size="'+(bw<38?9:11)+'" fill="var(--fg)">'+f0(m.kwh)+'</text>';}
+    if(bud!=null)s+='<line x1="'+(cx-bw*0.42)+'" x2="'+(cx+bw*0.42)+'" y1="'+y(bud)+'" y2="'+y(bud)+'" stroke="var(--ok)" stroke-width="1.5" stroke-dasharray="4 3"/>';});
+  box.innerHTML=s+'</svg>';
+}
+
+const todayIso=()=>{const t=new Date();return new Date(t.getTime()-t.getTimezoneOffset()*6e4).toISOString().slice(0,10);};
+const iso=todayIso();
+const fA=$('fAbl');let dateTouched=false,editing=null;
+fA.elements.datum.value=todayIso();
+fA.elements.datum.addEventListener('input',()=>{dateTouched=true;});
+$('heute').onclick=()=>{fA.elements.datum.value=todayIso();dateTouched=false;};
+function refreshDate(){if(!dateTouched&&!editing)fA.elements.datum.value=todayIso();}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDate();});
+window.addEventListener('focus',refreshDate);setInterval(refreshDate,60000);
+function startEdit(datum,stand){editing=datum;fA.elements.datum.value=datum;fA.elements.stand.value=stand;
+  $('fAblTitel').textContent='Ablesung bearbeiten';$('editHint').textContent='Du bearbeitest die Ablesung vom '+dt(datum)+'. Datum und Zählerstand kannst du ändern.';$('editHint').hidden=false;$('abbr').hidden=false;$('mAbl').textContent='';
+  fA.scrollIntoView({behavior:'smooth',block:'center'});fA.elements.stand.focus();}
+function stopEdit(){editing=null;dateTouched=false;fA.elements.datum.value=todayIso();fA.elements.stand.value='';$('fAblTitel').textContent='Neuer Zählerstand';$('editHint').hidden=true;$('abbr').hidden=true;}
+$('abbr').onclick=()=>{stopEdit();$('mAbl').textContent='';};
+$('fAbl').addEventListener('submit',e=>{e.preventDefault();const f=e.target,datum=f.elements.datum.value,stand=parseFloat(f.elements.stand.value);
+  if(!datum||isNaN(stand))return;
+  if(datum<=st.tarif.startdatum){$('mAbl').textContent='Das Datum muss nach dem Beginn des Abrechnungsjahres liegen.';$('mAbl').className='msg full bad';return;}
+  st.ablesungen=st.ablesungen.filter(a=>a.datum!==datum&&a.datum!==editing).concat([{datum,stand}]);
+  const ok=save();$('mAbl').textContent=ok?(editing?'Änderung gespeichert.':'Gespeichert.'):'Konnte nicht gespeichert werden.';$('mAbl').className='msg full '+(ok?'good':'bad');
+  if(ok)stopEdit();render();});
+$('fTarif').addEventListener('submit',e=>{e.preventDefault();const f=e.target;
+  st.tarif={startdatum:f.elements.startdatum.value,startstand:+f.elements.startstand.value,arbeitspreis_ct:+f.elements.arbeitspreis_ct.value,grundpreis_monat:+f.elements.grundpreis_monat.value,abschlag_monat:+f.elements.abschlag_monat.value,erste_zahlung:f.elements.erste_zahlung.value};
+  const ok=save();$('mTarif').textContent=ok?'Gespeichert.':'Konnte nicht gespeichert werden.';$('mTarif').className='msg full '+(ok?'good':'bad');render();});
+$('exp').onclick=()=>{const b=new Blob([JSON.stringify(st,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stromabrechnung-'+iso+'.json';a.click();};
+$('imp').onchange=e=>{const file=e.target.files[0];if(!file)return;file.text().then(t=>{const d=JSON.parse(t);if(!d.tarif||!Array.isArray(d.ablesungen))throw 0;st=d;save();render();$('mImp').textContent='Importiert.';$('mImp').className='msg good';}).catch(()=>{$('mImp').textContent='Datei konnte nicht gelesen werden.';$('mImp').className='msg bad';});};
+let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,150);});
+render();
+})();
+</script>
+</body>
+</html>
