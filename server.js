@@ -1,21 +1,21 @@
-// Stromabrechnung – kleiner Server mit GitHub-Login.
-// Nur der GitHub-Benutzer aus ALLOWED_USER kommt auf die Seite.
+// Stromabrechnung – kleiner Server mit Google-Login.
+// Nur die Google-Adresse(n) aus ALLOWED_EMAIL kommen auf die Seite.
 // Benötigte Umgebungsvariablen (in Render eintragen):
-//   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET, ALLOWED_USER
+//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET, ALLOWED_EMAIL (mehrere mit Komma trennen)
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
-const CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
-const ALLOWED_USER = (process.env.ALLOWED_USER || '').toLowerCase();
+const ALLOWED = (process.env.ALLOWED_EMAIL || '').toLowerCase().split(',').map((e) => e.trim()).filter(Boolean);
 const SESSION_DAYS = 30;
 const APP_FILE = path.join(__dirname, 'app', 'index.html');
 
-const configured = CLIENT_ID && CLIENT_SECRET && SESSION_SECRET.length >= 16 && ALLOWED_USER;
+const configured = CLIENT_ID && CLIENT_SECRET && SESSION_SECRET.length >= 16 && ALLOWED.length > 0;
 
 function sign(value) {
   return crypto.createHmac('sha256', SESSION_SECRET).update(value).digest('base64url');
@@ -68,15 +68,15 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (!configured) {
-      return page(res, 503, 'Nicht eingerichtet', '<h1>Stromabrechnung</h1><p>Der Login ist noch nicht eingerichtet. In Render fehlen GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET oder ALLOWED_USER.</p>');
+      return page(res, 503, 'Nicht eingerichtet', '<h1>Stromabrechnung</h1><p>Der Login ist noch nicht eingerichtet. In Render fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET oder ALLOWED_EMAIL.</p>');
     }
     if (url.pathname === '/healthz') { res.writeHead(200); return res.end('ok'); }
 
     if (url.pathname === '/login') {
       const state = crypto.randomBytes(16).toString('hex');
       setCookie(res, 'oauth_state', state, 600);
-      const q = new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: baseUrl(req) + '/auth/callback', scope: 'read:user', state, allow_signup: 'false' });
-      return redirect(res, 'https://github.com/login/oauth/authorize?' + q);
+      const q = new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: baseUrl(req) + '/auth/callback', response_type: 'code', scope: 'openid email', state, prompt: 'select_account' });
+      return redirect(res, 'https://accounts.google.com/o/oauth2/v2/auth?' + q);
     }
 
     if (url.pathname === '/auth/callback') {
@@ -85,17 +85,17 @@ const server = http.createServer(async (req, res) => {
       const state = url.searchParams.get('state');
       if (!code || !state || state !== c.oauth_state) return page(res, 400, 'Fehler', '<h1>Anmeldung fehlgeschlagen</h1><p>Bitte nochmal versuchen.</p><a class="btn" href="/login">Erneut anmelden</a>');
       setCookie(res, 'oauth_state', '', 0);
-      const tokRes = await fetch('https://github.com/login/oauth/access_token', {
+      const tokRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: CLIENT_ID, client_secret: CLIENT_SECRET, code, redirect_uri: baseUrl(req) + '/auth/callback' })
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, redirect_uri: baseUrl(req) + '/auth/callback', grant_type: 'authorization_code' })
       });
       const tok = await tokRes.json();
-      if (!tok.access_token) return page(res, 401, 'Fehler', '<h1>Anmeldung fehlgeschlagen</h1><p>GitHub hat keinen Zugang bestätigt.</p><a class="btn" href="/login">Erneut anmelden</a>');
-      const userRes = await fetch('https://api.github.com/user', { headers: { Authorization: 'Bearer ' + tok.access_token, 'User-Agent': 'stromabrechnung' } });
+      if (!tok.access_token) return page(res, 401, 'Fehler', '<h1>Anmeldung fehlgeschlagen</h1><p>Google hat keinen Zugang bestätigt.</p><a class="btn" href="/login">Erneut anmelden</a>');
+      const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: 'Bearer ' + tok.access_token } });
       const user = await userRes.json();
-      const login = String(user.login || '').toLowerCase();
-      if (login !== ALLOWED_USER) return page(res, 403, 'Kein Zugriff', '<h1>Kein Zugriff</h1><p>Dieses GitHub-Konto ist für diese Seite nicht freigeschaltet.</p>');
+      const login = String(user.email || '').toLowerCase();
+      if (!user.email_verified || !ALLOWED.includes(login)) return page(res, 403, 'Kein Zugriff', '<h1>Kein Zugriff</h1><p>Dieses Google-Konto ist für diese Seite nicht freigeschaltet.</p><a class="btn" href="/login">Anderes Konto wählen</a>');
       setCookie(res, 'session', makeToken({ u: login, exp: Date.now() + SESSION_DAYS * 864e5 }), SESSION_DAYS * 86400);
       return redirect(res, '/');
     }
@@ -106,8 +106,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     const session = readToken(cookies(req).session);
-    if (!session || session.u !== ALLOWED_USER) {
-      return page(res, 401, 'Anmelden', '<h1>Stromabrechnung</h1><p>Privater Bereich. Bitte mit deinem GitHub-Konto anmelden.</p><a class="btn" href="/login">Mit GitHub anmelden</a>');
+    if (!session || !ALLOWED.includes(session.u)) {
+      return page(res, 401, 'Anmelden', '<h1>Stromabrechnung</h1><p>Privater Bereich. Bitte mit deinem Google-Konto anmelden.</p><a class="btn" href="/login">Mit Google anmelden</a>');
     }
 
     if (url.pathname === '/' || url.pathname === '/index.html') {
