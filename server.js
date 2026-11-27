@@ -1,4 +1,4 @@
-// Stromabrechnung – Server mit Google-Login (gleiches Prinzip wie der Parqet Rebalancer).
+// Zählerstand – Server mit Google-Login (gleiches Prinzip wie der Parqet Rebalancer).
 // OAuth-2.0-Authorization-Code-Flow mit Google + eigenes, HMAC-signiertes Session-Cookie.
 // Keine Zusatzpakete: nur node:http, node:crypto und fetch.
 //
@@ -138,7 +138,7 @@ const server = http.createServer(async (req, res) => {
 
     // Auf Render ohne vollständige Login-Konfiguration: gesperrt lassen.
     if (!GOOGLE_AUTH_ENABLED && ON_RENDER) {
-      return page(res, 503, 'Nicht eingerichtet', '<h1>Stromabrechnung</h1><p>Der Google-Login ist noch nicht eingerichtet. In Render fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET oder ALLOWED_EMAILS.</p>');
+      return page(res, 503, 'Nicht eingerichtet', '<h1>Zählerstand</h1><p>Der Google-Login ist noch nicht eingerichtet. In Render fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET oder ALLOWED_EMAILS.</p>');
     }
 
     if (GOOGLE_AUTH_ENABLED) {
@@ -175,4 +175,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log('Stromabrechnung läuft auf Port ' + PORT + (GOOGLE_AUTH_ENABLED ? ' (Google-Login aktiv)' : ' (Google-Login nicht konfiguriert)')));
+server.listen(PORT, () => console.log('Zählerstand läuft auf Port ' + PORT + (GOOGLE_AUTH_ENABLED ? ' (Google-Login aktiv)' : ' (Google-Login nicht konfiguriert)')));
