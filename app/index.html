@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stromabrechnung</title>
+<title>Zählerstand</title>
 <style>
 :root{--bg:#f7f7f5;--panel:#fff;--fg:#1b1b1b;--muted:#6b6b6b;--line:#e3e3df;--ok:#1f7a4d;--bad:#b42318;--acc:#2a78d6;--acc2:#eb6834}
 @media(prefers-color-scheme:dark){:root{--bg:#161616;--panel:#202020;--fg:#eee;--muted:#a0a0a0;--line:#333;--ok:#4cc38a;--bad:#ff6b5e}}
@@ -47,7 +47,7 @@ details{font-size:13px;color:var(--muted)}details li{margin-bottom:4px}
 <body>
 <main>
 <header>
-  <h1>Stromabrechnung</h1>
+  <h1>Zählerstand</h1>
   <p class="lead" id="lead">Sobald eine Ablesung nach dem Startdatum eingetragen ist, erscheint hier, ob du zum Jahresende nachzahlen musst.</p>
 </header>
 
@@ -253,7 +253,7 @@ $('fAbl').addEventListener('submit',e=>{e.preventDefault();const f=e.target,datu
 $('fTarif').addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   st.tarif={startdatum:f.elements.startdatum.value,startstand:+f.elements.startstand.value,arbeitspreis_ct:+f.elements.arbeitspreis_ct.value,grundpreis_monat:+f.elements.grundpreis_monat.value,abschlag_monat:+f.elements.abschlag_monat.value,erste_zahlung:f.elements.erste_zahlung.value};
   const ok=save();$('mTarif').textContent=ok?'Gespeichert.':'Konnte nicht gespeichert werden.';$('mTarif').className='msg full '+(ok?'good':'bad');render();});
-$('exp').onclick=()=>{const b=new Blob([JSON.stringify(st,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stromabrechnung-'+iso+'.json';a.click();};
+$('exp').onclick=()=>{const b=new Blob([JSON.stringify(st,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='zaehlerstand-'+iso+'.json';a.click();};
 $('imp').onchange=e=>{const file=e.target.files[0];if(!file)return;file.text().then(t=>{const d=JSON.parse(t);if(!d.tarif||!Array.isArray(d.ablesungen))throw 0;st=d;save();render();$('mImp').textContent='Importiert.';$('mImp').className='msg good';}).catch(()=>{$('mImp').textContent='Datei konnte nicht gelesen werden.';$('mImp').className='msg bad';});};
 let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,150);});
 render();
